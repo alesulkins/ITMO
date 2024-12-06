@@ -38,6 +38,7 @@ public class Main {
         e3.employeeLeavePlace();
 
         shorty1.findWork(street);
+        
         System.out.println("-----------------------------------");
 
         shorty1.goToInstitution(e1);
