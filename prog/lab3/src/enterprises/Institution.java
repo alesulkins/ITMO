@@ -28,10 +28,6 @@ public abstract class Institution implements PaySalary {
 
     abstract boolean checkWorker(Shorty shorty);
 
-    public void doService(Shorty shorty, Service service) {
-        System.out.println(shorty.getName() + " " + service.action());
-    }
-
     public boolean makeService(Shorty shorty, Service service) {
         Random random = new Random();
         boolean resultOfService = random.nextDouble(0, 1) > 0.5;
@@ -83,7 +79,7 @@ public abstract class Institution implements PaySalary {
             throw new NotEnoughMoneyException(shorty.getName(), service.price() - shorty.getMoney(), service);
         }
 
-        doService(shorty, service);
+        System.out.println(shorty.getName() + " " + service.action());
         return makeService(employee, service);
     }
 
