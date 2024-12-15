@@ -52,7 +52,7 @@ public class Shorty {
         System.out.println(name + " не смог устроиться на работу и был опечален");
     }
 
-    public boolean checkInjuryWithEquals(String injuryToCheck) {
+    public boolean checkInjury(String injuryToCheck) {
         for (String injury : injuries) {
             if (injury.equals(injuryToCheck)) {
                 //System.out.println(name + " действительно имеет травму: " + injuryToCheck);
