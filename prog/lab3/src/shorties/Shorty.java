@@ -14,7 +14,7 @@ public class Shorty {
     private int age;
     private int money;
     private Emotions emotion = Emotions.NEUTRAL;
-    public ArrayList<BodyPart> bodyParts = new ArrayList<>();
+    private final ArrayList<BodyPart> bodyParts = new ArrayList<>();
     private boolean isIll = false;
     private final ArrayList<String> injuries = new ArrayList<>();//not static
 
@@ -25,44 +25,51 @@ public class Shorty {
         bodyParts.addAll(List.of(new BodyPart[]{BodyPart.ARM, BodyPart.LEG, BodyPart.BACK, BodyPart.CHEST, BodyPart.HEAD}));
     }
 
-
     public void checkHealth(boolean resultOfService) {
         if (!resultOfService) {
             Random random = new Random();
             if (random.nextDouble() < 0.3) {
                 isIll = true;
-                //System.out.println(name + " заболел и не может работать");
+                System.out.println(name + " заболел и не может работать");
             }
         }
     }
 
     public void addMoney(int amount) {
         this.money += amount;
-        //System.out.println(amount + " рублей заработано. Теперь " + this.name + " имеет " + this.money + " рублей");
+        System.out.println(amount + " рублей заработано. Теперь " + this.name + " имеет " + this.money + " рублей");
     }
 
     public void findWork(Street street) {
-        //System.out.println(name + " отправился искать работу на улицу " + street.getName());
+        System.out.println(name + " отправился искать работу на улицу " + street.getName());
         for (Institution institution : street.getInstitutions()) {
-            if (institution.toHire(this) && this.isIll) {
-                //System.out.println(name + " смог устроиться на работы и был счастлив");
+
+            if (institution.getEmployee() != null && institution.getEmployee().equals(this)) {
+                System.out.println(name + " уже работает в " + institution.getName());
+                return;
+            }
+
+            if (institution.toHire(this)) {
+                System.out.println(name + " смог устроиться на работу в " + institution.getName() + " и был счастлив.");
                 return;
             }
         }
-        System.out.println(name + " не смог устроиться на работу и был опечален");
+
+        System.out.println(name + " не смог устроиться на работу и был опечален.");
     }
 
     public boolean checkInjury(String injuryToCheck) {
         for (String injury : injuries) {
             if (injury.equals(injuryToCheck)) {
-                //System.out.println(name + " действительно имеет травму: " + injuryToCheck);
+                System.out.println(name + " действительно имеет травму: " + injuryToCheck);
                 return true;
             }
         }
-        //System.out.println(name + " не имеет травмы: " + injuryToCheck);
+        System.out.println(name + " не имеет травмы: " + injuryToCheck);
         return false;
     }
-    public void sayPhrase(String phrase) {//оставить + в зависимости от эмоции цвет фразы
+
+    public void sayPhrase(String phrase) {
         String colour;
         switch (emotion) {
             case HURT -> colour = "\u001B[31m";
@@ -72,17 +79,18 @@ public class Shorty {
         System.out.println(colour + this.name + " говорит: " + phrase + "\u001B[0m");
     }
 
-    public void tryToVisitInstitution(Institution institution, Service service) {
+    public boolean tryToVisitInstitution(Institution institution, Service service) {
         if (!institution.isWorking()) {
             sayPhrase("Ну ничего, скоро откроется!");
+            return false;
         } else {
-            goToInstitution(institution, service);
+            return goToInstitution(institution, service);
         }
     }
 
-    public boolean goToInstitution(Institution institution, Service service) {
+    private boolean goToInstitution(Institution institution, Service service) {
         try {
-            //System.out.println(name + " отправляется в " + institution.getName());
+            System.out.println(name + " отправляется в " + institution.getName());
             return institution.provisionOfService(this, service);
         } catch (NotEnoughMoneyException e) {
             System.out.println(e.getMessage());
@@ -108,6 +116,22 @@ public class Shorty {
         changeEmotion(Emotions.HURT);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Shorty shorty = (Shorty) o;
+
+        return age == shorty.age && name.equals(shorty.name);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = name.hashCode();
+        result = 31 * result + age;
+        return result;
+    }
 
     public ArrayList<String> getInjuries() {
         return injuries;
@@ -147,5 +171,9 @@ public class Shorty {
 
     public boolean isIll() {
         return isIll;
+    }
+
+    public ArrayList<BodyPart> getBodyParts() {
+        return bodyParts;
     }
 }

@@ -4,7 +4,7 @@ public enum Emotions {
     HAPPY("счастливый", "получил деньги"),
     HURT("раненый", "получил ранение"),
     NEUTRAL("нейтральный", "");
-    private String state;
+    private final String state;
     private String reason;
 
     Emotions(String state, String reason) {

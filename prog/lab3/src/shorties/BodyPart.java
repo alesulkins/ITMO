@@ -1,6 +1,6 @@
 package shorties;
 
-public enum BodyPart    {
+public enum BodyPart {
     HEAD("голове"),
     ARM("руке"),
     LEG("ноге"),
