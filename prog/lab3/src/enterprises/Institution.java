@@ -6,29 +6,28 @@ import shorties.Emotions;
 import shorties.Shorty;
 
 import java.time.LocalTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
 public abstract class Institution implements PaySalary {
-    private String name;
-    private int budget;
-    private List<Service> services;
-    private Shorty employee;
-    private LocalTime openingTime;
-    private LocalTime closingTime;
+    protected String name;
+    protected int budget;
+    protected List<Service> services;
+    protected Shorty employee;
+    protected LocalTime openingTime;
+    protected LocalTime closingTime;
 
     public Institution(String name, int budget, List<Service> services, LocalTime openingTime, LocalTime closingTime) {
         this.name = name;
         this.budget = budget;
-        this.services = new ArrayList<>();
+        this.services = services;
         this.openingTime = openingTime;
         this.closingTime = closingTime;
     }
 
-    abstract boolean checkWorker(Shorty shorty);
+    protected abstract boolean checkWorker(Shorty shorty);
 
-    public boolean makeService(Shorty shorty, Service service) {
+    protected boolean makeService(Shorty shorty, Service service) {
         Random random = new Random();
         boolean resultOfService = random.nextDouble(0, 1) > 0.5;
 
@@ -38,7 +37,7 @@ public abstract class Institution implements PaySalary {
             System.out.println(shorty.getName() + " " + service.actionForEmployee());
         } else {
             System.out.println(shorty.getName() + " не " + service.actionForEmployee());
-            shorty.addInjury(shorty.bodyParts.get(random.nextInt(0, shorty.bodyParts.size())), "синяк");
+            shorty.addInjury(shorty.getBodyParts().get(random.nextInt(0, shorty.getBodyParts().size())), "синяк");
         }
 
         shorty.checkHealth(resultOfService);
@@ -64,7 +63,7 @@ public abstract class Institution implements PaySalary {
 
         Service service = null;
         for (Service s : getServices()) {
-            if (s.name().equalsIgnoreCase(requestedService.name())) {
+            if (s.name().equals(requestedService.name())) {
                 service = s;
                 break;
             }
@@ -112,6 +111,10 @@ public abstract class Institution implements PaySalary {
         }
     }
 
+    public Shorty getEmployee() {
+        return employee;
+    }
+
     public void addService(Service service) {
         services.add(service);
     }
@@ -122,18 +125,6 @@ public abstract class Institution implements PaySalary {
 
     public String getName() {
         return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public int getBudget() {
-        return budget;
-    }
-
-    public void setBudget(int budget) {
-        this.budget = budget;
     }
 
     public List<Service> getServices() {

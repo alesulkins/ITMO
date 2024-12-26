@@ -13,7 +13,7 @@ public class EntertainmentEstablishment extends Institution {
     }
 
     @Override
-    boolean checkWorker(Shorty shorty) {
+    protected boolean checkWorker(Shorty shorty) {
         return shorty.getAge() > 20;
     }
 }

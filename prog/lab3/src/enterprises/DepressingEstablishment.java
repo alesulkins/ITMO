@@ -12,7 +12,7 @@ public class DepressingEstablishment extends Institution {
     }
 
     @Override
-    boolean checkWorker(Shorty shorty) {
+    protected boolean checkWorker(Shorty shorty) {
         return shorty.getAge() > 30;
     }
 }
