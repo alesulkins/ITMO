@@ -1,0 +1,54 @@
+plugins {
+    id 'java'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+group = 'org.example'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.postgresql:postgresql:42.7.2'
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+// Конфигурация shadowJar для server.jar с зависимостями (PostgreSQL)
+shadowJar {
+    mergeServiceFiles()
+    archiveBaseName.set('server')
+    archiveClassifier.set('')
+    archiveVersion.set('')
+    manifest {
+        attributes 'Main-Class': 'org.example.server.Main'
+    }
+    // Включаем только нужные классы (server + shared)
+    from(sourceSets.main.output) {
+        include 'org/example/server/**'
+        include 'org/example/shared/**'
+    }
+}
+
+// Обычный jar для client.jar (без зависимостей)
+task clientJar(type: Jar) {
+    archiveBaseName.set('client')
+    archiveClassifier.set('')
+    archiveVersion.set('')
+    manifest {
+        attributes 'Main-Class': 'org.example.client.Main'
+    }
+    from(sourceSets.main.output) {
+        include 'org/example/client/**'
+        include 'org/example/shared/**'
+    }
+}
+
+// Чтобы при сборке сразу делались оба
+build.dependsOn shadowJar, clientJar
