@@ -14,24 +14,19 @@ const possibleRs = new Set([1, 2, 3, 4, 5]);
 const validateState = (state) => {
     if (!Array.isArray(state.x) || state.x.length === 0) {
         error.hidden = false;
-        error.innerText = "Выберите ровно одно значение X";
+        error.innerText = "Выберите хотя бы одно значение X";
         throw new Error("Invalid state");
     }
 
-    if (state.x.length > 1) {
-        error.hidden = false;
-        error.innerText = "Можно выбрать только одно значение X";
-        throw new Error("Invalid state");
-    }
-
-    if (!possibleXs.has(parseFloat(state.x[0]))) {
-        error.hidden = false;
-        error.innerText = `X должен быть в диапазоне [${[...possibleXs].join(", ")}]`;
-        throw new Error("Invalid state");
+    for (const xVal of state.x) {
+        if (!possibleXs.has(parseFloat(xVal))) {
+            error.hidden = false;
+            error.innerText = `X должен быть в диапазоне [${[...possibleXs].join(", ")}]`;
+            throw new Error("Invalid state");
+        }
     }
 
     const yNum = parseFloat(state.y);
-    const yStr = state.y.trim();
 
     if (isNaN(yNum)) {
         error.hidden = false;
@@ -91,60 +86,116 @@ document.getElementById("data-form").addEventListener("submit", async function (
 
     validateState(state);
 
-    const newRow = table.insertRow(1);
+    const rNum = parseFloat(state.r);
+    const yNum = parseFloat(state.y);
+    drawScene(rNum);
 
-    const rowX = newRow.insertCell(0);
-    const rowY = newRow.insertCell(1);
-    const rowR = newRow.insertCell(2);
-    const rowTime = newRow.insertCell(3);
-    const rowExecTime = newRow.insertCell(4);
-    const rowResult = newRow.insertCell(5);
+    const requests = state.x.map(async (xStr) => {
+        const xNum = parseFloat(xStr);
+        const params = new URLSearchParams({ x: xStr, y: state.y, r: state.r });
+        const response = await fetch("fcgi-proxy.php?" + params.toString());
 
-    const params = new URLSearchParams({
-        x: state.x[0],
-        y: state.y,
-        r: state.r
+        const entry = {
+            x: xStr,
+            y: state.y,
+            r: state.r,
+            execTime: "",
+            time: "",
+            result: false,
+        };
+
+        try {
+            console.log(`Response for x=${xStr}: status=${response.status}, ok=${response.ok}`);
+            const contentType = response.headers.get('content-type');
+            console.log(`Content-Type: ${contentType}`);
+            
+            if (response.ok) {
+                error.hidden = true;
+                if (contentType && contentType.includes('application/json')) {
+                    const payload = await response.json();
+                    console.log(`Payload:`, payload);
+                    entry.time = new Date(payload.now).toLocaleString();
+                    entry.execTime = `${payload.time} нс`;
+                    entry.result = payload.result ? "Попадание" : "Промах";
+                } else {
+                    try {
+                        const text = await response.text();
+                        console.log(`Non-JSON response:`, text);
+                        entry.time = new Date().toLocaleString();
+                        entry.execTime = "N/A";
+                        entry.result = "Некорректный формат ответа";
+                    } catch (textError) {
+                        console.log(`Cannot read response text:`, textError);
+                        entry.time = new Date().toLocaleString();
+                        entry.execTime = "N/A";
+                        entry.result = "Пустой ответ сервера";
+                    }
+                }
+            } else if (response.status === 400) {
+                if (contentType && contentType.includes('application/json')) {
+                    const payload = await response.json();
+                    console.log(`Error payload:`, payload);
+                    entry.time = new Date(payload.now).toLocaleString();
+                    entry.execTime = "N/A";
+                    entry.result = `Ошибка: ${payload.reason}`;
+                } else {
+                    try {
+                        const text = await response.text();
+                        console.log(`Non-JSON error response:`, text);
+                        entry.time = new Date().toLocaleString();
+                        entry.execTime = "N/A";
+                        entry.result = `Ошибка: ${text}`;
+                    } catch (textError) {
+                        console.log(`Cannot read error response text:`, textError);
+                        entry.time = new Date().toLocaleString();
+                        entry.execTime = "N/A";
+                        entry.result = `Ошибка ${response.status}`;
+                    }
+                }
+            } else {
+                console.log(`Unexpected status: ${response.status}`);
+                try {
+                    const text = await response.text();
+                    console.log(`Response text:`, text);
+                    entry.time = "N/A";
+                    entry.execTime = "N/A";
+                    entry.result = `Ошибка ${response.status}`;
+                } catch (textError) {
+                    console.log(`Cannot read response text:`, textError);
+                    entry.time = "N/A";
+                    entry.execTime = "N/A";
+                    entry.result = `Ошибка ${response.status}`;
+                }
+            }
+        } catch (e) {
+            console.error(`Exception for x=${xStr}:`, e);
+            entry.time = "N/A";
+            entry.execTime = "N/A";
+            entry.result = "Ошибка парсинга";
+        }
+
+        const newRow = table.insertRow(1);
+        const rowX = newRow.insertCell(0);
+        const rowY = newRow.insertCell(1);
+        const rowR = newRow.insertCell(2);
+        const rowTime = newRow.insertCell(3);
+        const rowExecTime = newRow.insertCell(4);
+        const rowResult = newRow.insertCell(5);
+
+        rowX.innerText = entry.x.toString();
+        rowY.innerText = entry.y.toString();
+        rowR.innerText = entry.r.toString();
+        rowTime.innerText = entry.time;
+        rowExecTime.innerText = entry.execTime;
+        rowResult.innerText = entry.result;
+
+        const prev = JSON.parse(localStorage.getItem("results") || "[]");
+        localStorage.setItem("results", JSON.stringify([entry, ...prev]));
+
+        plotPoint(xNum, yNum, rNum);
     });
 
-    const response = await fetch("fcgi-proxy.php?" + params.toString());
-
-    const results = {
-        x: state.x[0],
-        y: state.y,
-        r: state.r,
-        execTime: "",
-        time: "",
-        result: false,
-    };
-
-    if (response.ok) {
-        error.hidden = true;
-        const result = await response.json();
-        results.time = new Date(result.now).toLocaleString();
-        results.execTime = `${result.time} нс`;
-        results.result = result.result ? "Попадание" : "Промах";
-
-        drawPoint(parseFloat(state.x[0]), parseFloat(state.y), parseFloat(state.r));
-    } else if (response.status === 400) {
-        const result = await response.json();
-        results.time = new Date(result.now).toLocaleString();
-        results.execTime = "N/A";
-        results.result = `Ошибка: ${result.reason}`;
-    } else {
-        results.time = "N/A";
-        results.execTime = "N/A";
-        results.result = "Ошибка"
-    }
-
-    const prevResults = JSON.parse(localStorage.getItem("results") || "[]");
-    localStorage.setItem("results", JSON.stringify([results, ...prevResults]));
-
-    rowX.innerText = results.x.toString();
-    rowY.innerText = results.y.toString();
-    rowR.innerText = results.r.toString();
-    rowTime.innerText = results.time;
-    rowExecTime.innerText = results.execTime;
-    rowResult.innerText = results.result;
+    await Promise.all(requests);
 });
 
 const prevResults = JSON.parse(localStorage.getItem("results") || "[]");
@@ -263,6 +314,18 @@ function drawPoint(x, y, r, showPoint = true) {
         ctx.arc(coords.x, coords.y, 4, 0, 2 * Math.PI);
         ctx.fill();
     }
+}
+
+function drawScene(r) {
+    drawPoint(0, 0, r, false);
+}
+
+function plotPoint(x, y, r) {
+    const coords = convertToCanvasCoords(x, y, r);
+    ctx.fillStyle = '#FF0000';
+    ctx.beginPath();
+    ctx.arc(coords.x, coords.y, 4, 0, 2 * Math.PI);
+    ctx.fill();
 }
 
 drawPoint(0, 0, 1, false);

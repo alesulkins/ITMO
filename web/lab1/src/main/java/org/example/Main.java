@@ -72,7 +72,7 @@ public class Main {
         }
 
         if (x < 0 && y < 0) {
-            return (-r <= x && x <= 0) && (-r <= y && y <= 0) && (y >= -x - r);
+            return (x >= -r && x <= 0) && (y >= -r && y <= 0) && (y >= x);
         }
 
         if (Math.abs(y) < 1e-6) {
