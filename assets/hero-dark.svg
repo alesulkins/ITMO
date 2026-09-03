@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="img" aria-label="ITMO — лабораторные работы по программной инженерии">
+  <title>ITMO — лабораторные работы по программной инженерии</title>
+  <rect width="1200" height="300" fill="#0D1117"/>
+  <defs>
+    <pattern id="hd" width="9" height="9" patternUnits="userSpaceOnUse">
+      <circle cx="4.5" cy="4.5" r="2.1" fill="#E6EDF3"/>
+    </pattern>
+    <clipPath id="hc">
+      <rect x="250" y="76" width="0" height="108">
+        <animate attributeName="width" values="0;10;21;31;41;52;62;72;82;93;103;113;124;134;144;155;165;175;186;196;206;216;227;237;247;258;268;268;268;268;268;268;268;268;268;268;268;268;268;268;268;268;268;268;268;268;268;268;268;268;268;268;268" dur="7s" calcMode="discrete" repeatCount="indefinite"/>
+      </rect>
+    </clipPath>
+  </defs>
+  <rect x="0" y="0" width="196" height="300" fill="url(#hd)" opacity="0.85"/>
+  <rect x="196" y="0" width="6" height="300" fill="#4C6E8F"/>
+  <text x="250" y="60" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="13" letter-spacing="3.4" fill="#9198A1">FOR SOME DELULU STUFF</text>
+  <g clip-path="url(#hc)">
+    <text x="250" y="146" font-family="Helvetica Neue,Helvetica,Arial,sans-serif" font-size="96" font-weight="700" letter-spacing="2" fill="#E6EDF3">ITMO</text>
+  </g>
+  <rect x="250" y="70" width="14" height="92" fill="#E6EDF3">
+    <animate attributeName="x" values="250;260;271;281;291;302;312;322;332;343;353;363;374;384;394;405;415;425;436;446;456;466;477;487;497;508;518;518;518;518;518;518;518;518;518;518;518;518;518;518;518;518;518;518;518;518;518;518;518;518;518;518;518" dur="7s" calcMode="discrete" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="1;1;0;0" dur="0.9s" calcMode="discrete" repeatCount="indefinite"/>
+  </rect>
+  <rect x="250" y="176" width="910" height="1" fill="#9198A1" opacity="0.5"/>
+  <text x="250" y="214" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12" letter-spacing="1.4" fill="#9198A1">ФАКУЛЬТЕТ</text><text x="1160" y="214" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12" letter-spacing="1.4" fill="#E6EDF3">ФПИКТ</text>
+  <text x="250" y="234" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12" letter-spacing="1.4" fill="#9198A1">НАПРАВЛЕНИЕ</text><text x="1160" y="234" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12" letter-spacing="1.4" fill="#E6EDF3">ПРОГРАММНАЯ ИНЖЕНЕРИЯ</text>
+  <text x="250" y="254" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12" letter-spacing="1.4" fill="#9198A1">ПРОГРАММА</text><text x="1160" y="254" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12" letter-spacing="1.4" fill="#E6EDF3">НЕЙРОТЕХНОЛОГИИ И ПРОГРАММИРОВАНИЕ</text>
+  <text x="250" y="274" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12" letter-spacing="1.4" fill="#9198A1">СЕМЕСТРЫ</text><text x="1160" y="274" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12" letter-spacing="1.4" fill="#E6EDF3">1 — 5</text>
+</svg>
