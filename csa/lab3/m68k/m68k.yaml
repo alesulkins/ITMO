@@ -1,0 +1,33 @@
+# text_word_counter — M68k
+# Test case (from pattern.md assert):
+#   input : "a bb ccc a ccc a\n"
+#   words : "a"(×3)  "bb"(×1)  "ccc"(×2)
+#   output: "3 1 2"  →  bytes [51, 32, 49, 32, 50]
+
+limit: 1000
+memory_size: 0x1000
+
+memory_mapped_io:
+  0x80: [97,32,98,98,32,99,99,99,32,97,32,99,99,99,32,97,10]
+  0x84: []
+
+reports:
+  - name: "Execution trace (last 20 steps)"
+    slice: ["tail", 20]
+    view: |
+      {pc:hex} {instruction} {pc:label}
+      D0:{D0:dec}  D1:{D1:dec}  D2:{D2:dec}  D3:{D3:hex}
+      D4:{D4:dec}  D5:{D5:dec}  D6:{D6:dec}  D7:{D7:dec}
+      A4:{A4:hex}  A5:{A5:hex}  A7:{A7:hex}
+      SR:{SR:bin}
+
+  - name: "Result"
+    slice: last
+    filter:
+      - state
+    view: |
+      numio[0x80]: {io:0x80:dec}
+      numio[0x84]: {io:0x84:dec}
+    assert: |
+      numio[0x80]: [] >>> []
+      numio[0x84]: [] >>> [51,32,49,32,50]
