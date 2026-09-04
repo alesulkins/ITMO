@@ -1,8 +1,7 @@
 ## helios
 - psql -h pg studs
 - password -> .pgpass
-- \*:\* :\*:login:PaSsw0rD
-AMfn8yvLHeB4tvsL
+
 ## Алгоритм подключения к базе данных
 - соединение с помощью DriverManager.getConnection(...); - возвращает объект класса Connection
 - создание запроса через метод connection.createStatement() - возвращает Statement 
