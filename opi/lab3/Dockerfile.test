@@ -1,0 +1,8 @@
+FROM eclipse-temurin:17-jdk-jammy
+WORKDIR /workspace
+COPY gradlew settings.gradle gradle.properties ./
+COPY gradle ./gradle
+COPY build.gradle ./
+COPY backend/ backend/
+RUN chmod +x gradlew
+CMD ["./gradlew", ":test", "--no-daemon"]

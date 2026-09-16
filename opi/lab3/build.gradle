@@ -1,0 +1,607 @@
+plugins {
+    id 'base'
+}
+evaluationDependsOn(':backend')
+// из gradle.properties
+def srcDir = file(rootProject.property('backendSrcDir'))
+def classDir = file(rootProject.property('buildClassesDir'))
+def frontendDir = file(rootProject.property('frontendDir'))
+def functionalTestsDir = file(rootProject.property('functionalTestsDir'))
+def composeTestFile = rootProject.property('composeTestFile').toString()
+def functionalTestsService = rootProject.property('functionalTestsService').toString()
+def historyDockerImage = rootProject.property('historyDockerImage').toString()
+def historyDiffFile = file(rootProject.property('historyDiffFile'))
+
+//  коннект с project, вычисляем на этапе конфигурации - была траббл из-за того, что в doLast не видны project и rootProject
+def projectRoot = rootDir
+def backendClasspath = files(project(':backend').configurations.compileClasspath)
+def useDockerHistory = (findProperty('dockerHistory') == 'true')
+def grepFilter = findProperty('grep')?.toString()
+
+// функция принисмающая комманду как список строк
+def runCommand = { List<String> command, File workingDir ->
+    def process = new ProcessBuilder(command) // класс запуска внешних программ в джаве или груви
+        .directory(workingDir) 
+        .redirectErrorStream(true)
+        .start()
+    process.inputStream.eachLine { line -> println line }
+    return process.waitFor() //ждем код завершения (0-успех)
+}
+
+tasks.register('filter_func-tests') {
+    group = 'lab4'
+    description = 'Filters functional tests by Playwright tags'
+
+    doLast {
+        def tagsProperty = findProperty('tags')
+        def tags = []
+
+        if (tagsProperty != null) {
+            def tagsString = tagsProperty.toString()
+            def parts = tagsString.split(',')
+
+            for (part in parts) {
+                def tag = part.trim()
+
+                if (!tag.isEmpty()) {
+                    tags.add(tag)
+                }
+            }
+        }
+
+        def command = ['npx','playwright', 'test']
+
+        if (tags.isEmpty()) {
+            println "No tags specified. Running all functional tests."
+        } else {
+            def grepParts = []
+
+            for (tag in tags) {
+                if (tag.startsWith('@')) {
+                    grepParts.add(tag)
+                } else {
+                    grepParts.add('@' + tag)
+                }
+            }
+
+            def grepPattern = grepParts.join('|')
+            println "Running functional tests with tags: ${grepPattern}"
+
+            command.add('--grep')
+            command.add(grepPattern)
+        }
+        def exitCode = runCommand(command, functionalTestsDir)
+
+        if (exitCode != 0) {
+            throw new GradleException("Functional tests failed")
+        }
+        println "Functional tests completed successfully"
+    }
+}
+
+tasks.register('compile') {
+    group = 'lab4'
+    description = 'Compiles Java code'
+
+    doLast {
+        def javaFiles = fileTree(srcDir).matching { include '**/*.java' }.files*.path
+        if (javaFiles.isEmpty()) {
+            throw new GradleException("No Java files found in ${srcDir}")
+        }
+
+        classDir.mkdirs()
+
+        def classpath = backendClasspath.files.join(File.pathSeparator)
+        def command = ['javac', '-encoding', 'UTF-8', '-d', classDir.absolutePath]
+        if (classpath) {
+            command += ['-cp', classpath]
+        }
+        command += javaFiles
+
+        println "javac: compiling ${javaFiles.size()} files..."
+
+        if (runCommand(command, projectRoot) != 0) {
+            throw new GradleException("Compilation failed")
+        }
+        println "Compilation successful"
+    }
+}
+
+tasks.named('build') {
+    group  = 'lab4'
+    description = 'Compilation and packaging into JAR'
+
+    dependsOn 'compile', ':backend:bootJar'
+}
+
+tasks.named('clean') {
+    group       = 'lab4'
+    description = 'Cleans compiled classes and tmp files'
+
+    delete project(':backend').layout.buildDirectory
+    delete file("${frontendDir}/${rootProject.property('frontendBuildDir')}")
+    delete file("${frontendDir}/${rootProject.property('frontendNodeCacheDir')}")
+    delete file("${functionalTestsDir}/${rootProject.property('functionalTestsResultsDir')}")
+    delete file("${functionalTestsDir}/${rootProject.property('functionalTestsReportDir')}")
+}
+
+tasks.register('test') {
+    group       = 'lab4'
+    description = 'Runs unit tests'
+
+    dependsOn 'build', ':backend:test'
+}
+
+// ф тесты в docker-поднимают бд, бэк, фронт и Playwright
+tasks.register('func-tests') {
+    group = 'lab4'
+    description = 'Runs functional tests in Docker'
+    dependsOn 'build'
+
+    doLast {
+        def command
+
+        if (grepFilter) {
+            command = ['docker','compose','-f',composeTestFile,'run', functionalTestsService,'npx','playwright','test', '--grep',grepFilter]
+
+            println "Running functional tests in Docker, filter: ${grepFilter}"
+        } else {
+            command = ['docker','compose','-f', composeTestFile,'up', '--build', '--exit-code-from', functionalTestsService, functionalTestsService ]
+
+            println "Running functional tests in Docker..."
+        }
+
+        def exitCode = runCommand(command, projectRoot)
+        runCommand(['docker', 'compose', '-f', composeTestFile, 'down', '--remove-orphans'], projectRoot)
+
+        if (exitCode != 0) {
+            throw new GradleException("Functional tests failed")
+        }
+
+        println "Functional tests completed successfully"
+    }
+}
+
+tasks.register('func-tests-local') {
+    group = 'lab4'
+    description = 'Runs functional tests on the host (application must be running)'
+
+    dependsOn 'build'
+
+    doLast {
+        // зависимости и браузер только при первом запуске
+        def nodeModules = new File(functionalTestsDir, rootProject.property('functionalTestsNodeModulesDir').toString())
+        if (!nodeModules.exists()) {
+            println "Installing Playwright (first run, may take a few minutes)..."
+            if (runCommand(['npm', 'install'], functionalTestsDir) != 0) {
+                throw new GradleException("npm install failed")
+            }
+            if (runCommand(['npx', 'playwright', 'install', 'chromium'], functionalTestsDir) != 0) {
+                throw new GradleException("Playwright browser installation failed")
+            }
+        }
+
+        def command = ['npx', 'playwright', 'test']
+        if (grepFilter) {
+            command += ['--grep', grepFilter]
+        }
+
+        println grepFilter
+            ? "Running functional tests on the host, filter: ${grepFilter}"
+            : 'Running functional tests on the host (application must be running locally)...'
+
+        if (runCommand(command, functionalTestsDir) != 0) {
+            throw new GradleException("Functional tests failed")
+        }
+        println "Functional tests completed successfully"
+    }
+}
+
+tasks.register('xml') {
+    group       = 'lab4'
+    description = 'Validation of xml-files'
+
+    doLast {
+        def xmlFiles = fileTree(projectRoot) {
+            include '**/*.xml'
+            exclude '**/build/**', '**/node_modules/**', '**/.gradle/**', '**/.idea/**'
+        }.files
+
+        if (xmlFiles.isEmpty()) {
+            println "No XML files found for validation"
+            return
+        }
+        // билдер - хмл парсер проверяет корректность хмл
+        def builder = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder()
+        def errors = []
+
+        xmlFiles.each { xmlFile ->
+            println "Validating ${xmlFile.name}"
+            try {
+                builder.parse(xmlFile)
+            } catch (Exception e) {
+                errors << "Error in ${xmlFile.path}: ${e.message}"
+            }
+        }
+
+        if (errors) {
+            println "XML validation completed with errors:"
+            errors.each { println it }
+            throw new GradleException("XML validation failed with ${errors.size()} error(s)")
+        }
+        println "XML validation successful: all ${xmlFiles.size()} file(s) are well-formed"
+    }
+}
+
+tasks.register('history') {
+    group       = 'lab4'
+    description = 'Finds the last working git revision and writes diff file'
+
+    doLast {
+        // git +  возврат вывод
+        def git = { List<String> command ->
+            def process = new ProcessBuilder(command) // новый внешний процесс исполняющий кмд
+                .directory(projectRoot)
+                .redirectErrorStream(true)
+                .start()
+            def output = process.inputStream.text.trim() //от пустых строк
+            return [code: process.waitFor(), text: output]
+        }
+
+        // попытка собрать текущую ревизию: локально или внутри Docker-контейнера
+        def compiles = {
+            def command = ['./gradlew', 'clean', 'compile', '--no-daemon', '--quiet'] // по дефолту лок
+            if (useDockerHistory) { // внутри докера
+                command = ['docker', 'run', '--rm',
+                           '-v', "${projectRoot.absolutePath}:/workspace".toString(),
+                           '-w', '/workspace',
+                           historyDockerImage] + command
+            }
+            return git(command).code == 0
+        }
+
+        if (git(['git', 'rev-parse', '--is-inside-work-tree']).code != 0) {
+            throw new GradleException('history target works only inside git repository')
+        }
+        if (git(['git', 'status', '--porcelain']).text) {
+            throw new GradleException('Commit or stash changes before running history')
+        }
+
+        // куда вернуться после перебора ревизий
+        def originalBranch = git(['git', 'branch', '--show-current']).text
+        def originalRef = originalBranch ?: git(['git', 'rev-parse', 'HEAD']).text
+
+        println 'Checking current revision...'
+        if (compiles()) {
+            println 'Current revision compiles successfully'
+            return
+        }
+
+        def commits = git(['git', 'log', '--first-parent', '--format=%H']).text.readLines()
+
+        String lastWorking = null
+        String firstFailing = commits[0]
+
+        try {
+            for (int i = 1; i < commits.size(); i++) {
+                println "Checking ${commits[i].take(7)}..."
+
+                if (git(['git', 'checkout', '--quiet', commits[i]]).code != 0) {
+                    throw new GradleException("Cannot checkout ${commits[i].take(7)}")
+                }
+                if (compiles()) {
+                    lastWorking = commits[i]
+                    firstFailing = commits[i - 1]
+                    break
+                }
+            }
+        } finally {
+            // возвращаем репозиторий в исходное состояние
+            if (git(['git', 'checkout', '--quiet', originalRef]).code != 0) {
+                throw new GradleException("Cannot restore original Git position: ${originalRef}")
+            }
+        }
+
+        if (lastWorking == null) {
+            println 'No working revision found, including the first revision'
+            return
+        }
+
+        historyDiffFile.parentFile.mkdirs()
+        historyDiffFile.text = git(['git', 'diff', lastWorking, firstFailing]).text
+
+        println "Last working revision: ${lastWorking.take(7)}"
+        println "First failing revision: ${firstFailing.take(7)}"
+        println "Diff saved to: ${historyDiffFile.absolutePath}"
+    }
+}
+
+
+
+
+//
+//
+//
+// ТЕСТЫ 1. ВСЁ В DOCKER 
+//
+//     модульные тесты в контейнере
+// docker compose -f docker-compose.test.yml run --build --rm backend-test
+//
+//     функциональные тесты в Docker:  бд+ бэк + фронт + Playwright,
+// ./gradlew func-tests
+//
+// функциональные тесты напрямую, без Gradle; echo $? покажет код завершения
+// docker compose -f docker-compose.test.yml up --build --exit-code-from functional-tests functional-tests
+//
+//     убрать окружение после прогона (-v удаляет и данные БД)
+// docker compose -f docker-compose.test.yml down -v --remove-orphans
+//
+//
+// ТЕСТЫ 2. БЕЗ DOCKER
+//
+//     модульные тесты: сначала build, потом 9 JUnit-тестов
+// ./gradlew test
+//
+//     то же, но игнорируя кэш Gradle (иначе UP-TO-DATE и тесты не выполнятся)
+// ./gradlew test --rerun-tasks
+//
+//     поднять приложение вручную в терминалах
+// docker compose up -d postgres/зайти в приложение и проверить что оно работает
+// java -jar backend/build/libs/lab4-backend.jar
+// cd frontend && npm install && npm start
+//
+//     функциональные тесты на хосте; приложение должно отвечать на http://localhost:3000
+// ./gradlew func-tests-local
+//
+//
+// ТЕСТЫ 3. ТОЧЕЧНЫЙ ЗАПУСК И ОТЛАДКА (из папки functional-tests)
+//
+// npx playwright test tests/points.spec.js     один файл
+// npx playwright test -g "010"                 один кейс по номеру
+// npx playwright test --headed                 с видимым браузером
+// npx playwright test --ui                     интерактивный режим со списком тестов
+// npx playwright test --debug                  пошаговая отладка
+// npx playwright codegen http://localhost:3000 запись действий в готовый код
+//
+//
+// ТЕСТЫ 4. ПРОВЕРКА СОСТОЯНИЯ И ОТЧЁТЫ
+//
+// ./gradlew status                     порты, jar, контейнеры
+// docker compose ps                    статус контейнеров: healthy / unhealthy
+// docker compose logs backend          логи, если что-то не поднялось
+// lsof -nP -iTCP:8080 -sTCP:LISTEN     кто занял порт
+//
+// open backend/build/reports/tests/test/index.html      отчёт по модульным
+// open functional-tests/playwright-report/index.html    отчёт по функциональным
+//
+// ==================================================
+//
+//
+
+tasks.register('status') {
+    group = 'lab4-проверка'
+    description = 'Показывает состояние портов, контейнеров и артефактов'
+
+    doLast {
+        println '--- порты ---'
+        [3000: 'frontend', 8080: 'backend', 5431: 'postgres'].each { port, name ->
+            def busy = true
+            try {
+                new Socket('localhost', port).close()
+            } catch (Exception ignored) {
+                busy = false
+            }
+            println "  $port ($name): ${busy ? 'ЗАНЯТ - кто-то слушает' : 'свободен - никто не слушает'}"
+        }
+
+        println '--- артефакты ---'
+        def jar = file("backend/build/libs/${rootProject.property('backendJarName')}")
+        println "  jar: ${jar.exists() ? "есть, ${jar.length().intdiv(1024)} КБ" : 'НЕТ - нужен ./gradlew build'}"
+        def classes = file(rootProject.property('buildClassesDir'))
+        println "  классы: ${classes.exists() ? 'есть' : 'НЕТ - нужен ./gradlew compile'}"
+
+        println '--- контейнеры ---'
+        runCommand(['docker', 'compose', 'ps'], projectRoot)
+    }
+}
+
+tasks.register('appUp') {
+    group = 'lab4-проверка'
+    description = 'Поднимает приложение в Docker и ждёт готовности'
+
+    doLast {
+        if (runCommand(['docker', 'compose', 'up', '-d', '--build', '--wait'], projectRoot) != 0) {
+            throw new GradleException('Не удалось поднять приложение')
+        }
+        println 'Приложение доступно: http://localhost:3000'
+    }
+}
+
+tasks.register('appDown') {
+    group = 'lab4-проверка'
+    description = 'Останавливает приложение и тестовое окружение'
+
+    doLast {
+        runCommand(['docker', 'compose', 'down', '--remove-orphans'], projectRoot)
+        runCommand(['docker', 'compose', '-f', composeTestFile, 'down', '--remove-orphans'], projectRoot)
+    }
+}
+
+tasks.register('appLogs') {
+    group = 'lab4-проверка'
+    description = 'Показывает логи контейнеров'
+
+    doLast {
+        runCommand(['docker', 'compose', 'logs', '--tail', '50'], projectRoot)
+    }
+}
+
+tasks.register('jarInfo') {
+    group = 'lab4-проверка'
+    description = 'Показывает манифест и содержимое собранного JAR'
+
+    doLast {
+        def jar = file("backend/build/libs/${rootProject.property('backendJarName')}")
+        if (!jar.exists()) {
+            throw new GradleException("JAR не найден: ${jar.absolutePath}. Сначала ./gradlew build")
+        }
+
+        println "Файл: ${jar.absolutePath}"
+        println "Размер: ${jar.length().intdiv(1024)} КБ"
+        println '--- MANIFEST.MF ---'
+
+        new java.util.zip.ZipFile(jar).withCloseable { zip ->
+            println zip.getInputStream(zip.getEntry('META-INF/MANIFEST.MF')).getText('UTF-8')
+        }
+    }
+}
+
+tasks.register('countFiles') {
+    group = 'lab4-задания'
+    description = 'Считает файлы проекта по типам'
+
+    doLast {
+        def count = { String dir, String pattern ->
+            fileTree(dir).matching { include pattern }.files.size()
+        }
+        println "java-файлов (main):  ${count('backend/src/main/java', '**/*.java')}"
+        println "java-файлов (test):  ${count('backend/src/test/java', '**/*.java')}"
+        println "js/jsx (frontend):   ${count('frontend/src', '**/*.js*')}"
+        println "тестов Playwright:   ${count('functional-tests/tests', '**/*.spec.js')}"
+        def xmlCount = fileTree(projectRoot) {
+            include '**/*.xml'
+            exclude '**/build/**', '**/node_modules/**', '**/.gradle/**', '**/.idea/**'
+        }.files.size()
+        println "xml-файлов:          ${xmlCount}"
+    }
+}
+
+tasks.register('classVersion') {
+    group = 'lab4-задания'
+    description = 'Показывает, какой версией Java скомпилированы классы'
+
+    doLast {
+        def versions = [52: 'Java 8', 55: 'Java 11', 61: 'Java 17', 65: 'Java 21', 66: 'Java 22', 67: 'Java 23', 68: 'Java 24', 69: 'Java 25']
+        def target = findProperty('dir') ? file(findProperty('dir')) : classDir
+        def classFiles = fileTree(target).matching { include '**/*.class' }.files
+
+        if (classFiles.isEmpty()) {
+            throw new GradleException("Классы не найдены в ${target}. Сначала ./gradlew compile")
+        }
+
+        println "Каталог: ${target}"
+
+        classFiles.take(5).each { f ->
+            def header = new byte[8]
+            f.withInputStream { it.read(header) }
+            def major = ((header[6] & 0xFF) << 8) | (header[7] & 0xFF)
+            println "${f.name}: major=$major (${versions[major] ?: 'неизвестно'})"
+        }
+        println "Всего классов: ${classFiles.size()}"
+    }
+}
+
+tasks.register('checkCache') {
+    group = 'lab4-задания'
+    description = 'Проверяет кэш зависимостей Gradle и готовность к сборке без интернета'
+
+    doLast {
+        def cache = file("${System.getProperty('user.home')}/.gradle/caches/modules-2/files-2.1")
+
+        if (!cache.exists()) {
+            println 'Кэш пуст: зависимости не скачаны, нужен интернет'
+            return
+        }
+
+        def cached = fileTree(cache).matching { include '**/*.jar' }.files
+        println "Кэш: ${cache.absolutePath}"
+        println "Артефактов в кэше: ${cached.size()}"
+
+        def needed = backendClasspath.files
+        def missing = needed.findAll { !it.exists() }
+        println "Нужно для сборки: ${needed.size()}"
+
+        if (missing) {
+            println "Отсутствует локально: ${missing.size()} - потребуется интернет"
+        } else {
+            println 'Все зависимости на диске: сборка возможна без интернета (./gradlew build --offline)'
+        }
+    }
+}
+
+tasks.register('offlineBuild') {
+    group = 'lab4-задания'
+    description = 'Собирает проект без обращения в интернет'
+
+    doLast {
+        println 'Сборка в режиме --offline (интернет не используется)...'
+        if (runCommand(['./gradlew', 'build', '--offline', '--no-daemon'], projectRoot) != 0) {
+            throw new GradleException('Сборка без интернета не удалась: чего-то нет в кэше')
+        }
+        println 'Успешно: проект собран без интернета'
+    }
+}
+
+tasks.register('compileMixed') {
+    group = 'lab4-задания'
+    description = 'Компилирует часть классов одним javac, часть другим (-PjdkA=... -PjdkB=...)'
+
+    doLast {
+        def javacA = (findProperty('jdkA') ?: 'javac').toString()
+        def javacB = (findProperty('jdkB') ?: 'javac').toString()
+        def logDir = file("${buildDir}/compile-logs")
+        logDir.mkdirs()
+
+        def classpath = backendClasspath.files.join(File.pathSeparator)
+
+        def compileWith = { String javac, List<String> sources, String outName, String extraCp, String logName ->
+            def out = file("${buildDir}/${outName}")
+            out.deleteDir()
+            out.mkdirs()
+
+            def cp = extraCp ? "${classpath}${File.pathSeparator}${extraCp}" : classpath
+            def command = ([javac, '-encoding', 'UTF-8', '-d', out.absolutePath, '-cp', cp] + sources)*.toString()
+
+            def process = new ProcessBuilder(command).redirectErrorStream(true).start()
+            def output = process.inputStream.text
+            def code = process.waitFor()
+
+            new File(logDir, logName).text = "Компилятор: ${javac}\nФайлов: ${sources.size()}\nКод завершения: ${code}\n\n${output}"
+
+            def produced = fileTree(out).matching { include '**/*.class' }.files.size()
+            println "${logName}: код ${code}, классов ${produced}, лог ${logName}"
+            return out.absolutePath
+        }
+
+        def patternB = (findProperty('splitB') ?: '**/dto/*.java').toString()
+        def sources = fileTree(srcDir).matching { include '**/*.java' }.files*.path.sort()
+        def sourcesB = fileTree(srcDir).matching { include patternB }.files*.path.sort()
+
+        println "Компилятор A: ${javacA} (все ${sources.size()} файлов)"
+        def outA = compileWith(javacA, sources, 'classes-a', null, 'javac-a.log')
+
+        println "Компилятор B: ${javacB} (${sourcesB.size()} файлов по маске ${patternB})"
+        compileWith(javacB, sourcesB, 'classes-b', outA, 'javac-b.log')
+
+        println "Логи компиляции: ${logDir.absolutePath}"
+        println "Проверить версии: ./gradlew classVersion -Pdir=build/classes-a"
+        println "                  ./gradlew classVersion -Pdir=build/classes-b"
+    }
+}
+
+tasks.register('envInfo') {
+    group = 'lab4-задания'
+    description = 'Показывает версии установленных инструментов'
+
+    doLast {
+        println "Gradle: ${gradle.gradleVersion}"
+        println "Java (Gradle): ${System.getProperty('java.version')}"
+        [['java', '-version'], ['javac', '-version'], ['docker', '--version'],
+         ['node', '-v'], ['npm', '-v'], ['git', '--version']].each { cmd ->
+            print "${cmd[0]}: "
+            runCommand(cmd, projectRoot)
+        }
+        println '--- доступные JDK ---'
+        runCommand(['/usr/libexec/java_home', '-V'], projectRoot)
+    }
+}
