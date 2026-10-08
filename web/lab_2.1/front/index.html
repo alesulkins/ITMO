@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Проверка попадания точки</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,800;1,400&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <header>
+    <p class="name">Ярулина Алесия Ильгамовна</p>
+    <p class="kicker">Лабораторная работа № 2 · веб-программирование</p>
+    <dl class="meta">
+      <div><dt>Группа</dt><dd>P3320</dd></div>
+      <div><dt>Вариант</dt><dd>30746</dd></div>
+    </dl>
+  </header>
+
+  <main>
+    <section class="panel">
+      <span class="eyebrow">Ввод данных</span>
+      <h2>Проверка точки</h2>
+
+      <form id="point-form">
+        <div class="field">
+          <span class="label">Координата X</span>
+          <div class="options">
+            <label><input type="radio" name="x" value="-5"><span>−5</span></label>
+            <label><input type="radio" name="x" value="-4"><span>−4</span></label>
+            <label><input type="radio" name="x" value="-3"><span>−3</span></label>
+            <label><input type="radio" name="x" value="-2"><span>−2</span></label>
+            <label><input type="radio" name="x" value="-1"><span>−1</span></label>
+            <label><input type="radio" name="x" value="0" checked><span>0</span></label>
+            <label><input type="radio" name="x" value="1"><span>1</span></label>
+            <label><input type="radio" name="x" value="2"><span>2</span></label>
+            <label><input type="radio" name="x" value="3"><span>3</span></label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="y">Координата Y</label>
+          <input id="y" type="text" name="y" inputmode="decimal" autocomplete="off" placeholder="−3 < Y < 3">
+        </div>
+
+        <div class="field">
+          <label for="r">Радиус R</label>
+          <input id="r" type="text" name="r" inputmode="decimal" autocomplete="off" placeholder="2 < R < 5" value="3">
+        </div>
+
+        <p id="error" role="alert"></p>
+
+        <div class="actions">
+          <button type="submit" id="submit">Проверить точку</button>
+          <button type="button" id="clear">Очистить историю</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <span class="eyebrow">Координатная плоскость</span>
+      <h1>Область попадания</h1>
+      <canvas id="plot" width="380" height="380"></canvas>
+      <div class="legend">
+        <span data-dot="area">Область</span>
+        <span data-dot="hit">Попала</span>
+        <span data-dot="miss">Не попала</span>
+      </div>
+    </section>
+
+    <section class="panel" data-span="full">
+      <span class="eyebrow">История проверок</span>
+      <h2>Результаты</h2>
+
+      <div class="summary">
+        <div><b id="stat-total">0</b><small>всего</small></div>
+        <div><b id="stat-hit">0</b><small>попаданий</small></div>
+        <div><b id="stat-miss">0</b><small>промахов</small></div>
+      </div>
+
+      <div class="table-wrap">
+        <table id="result-table">
+          <thead>
+            <tr>
+              <th>X</th>
+              <th>Y</th>
+              <th>R</th>
+              <th>Дата и время</th>
+              <th>Время работы</th>
+              <th>Результат</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <p class="server-info" id="server-info"></p>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
